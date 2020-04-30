@@ -113,15 +113,9 @@ while True:
 
 
 
-# TODO 
+# Future Ref
 
 # https://docs.pycom.io/firmwareapi/pycom/machine/spi/
 # https://docs.pycom.io/firmwareapi/pycom/network/bluetooth/
-
-# Everything is implemented for this article, I just need to have a play with the BLE functions for the next step
-# The two references that will be required to setup a GATT server are here
 # https://docs.pycom.io/firmwareapi/pycom/network/bluetooth/gattsservice/
 # https://docs.pycom.io/firmwareapi/pycom/network/bluetooth/gattscharacteristic/
-# The service is that actual advertisement and the characteristic is the data
-# https://docs.pycom.io/firmwareapi/pycom/network/bluetooth/#class-network-bluetooth-id-0
-# See here for bluetooth object constructor
