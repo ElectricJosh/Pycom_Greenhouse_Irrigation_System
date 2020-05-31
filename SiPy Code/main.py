@@ -8,7 +8,15 @@ from machine import I2C
 from _LCD import LCDBackend
 from _RTC import RTCBackend
 
-#from network import Bluetooth
+from network import Bluetooth
+
+# Needs to read delays from EEPROM
+# if 0 then set to default of 30 seconds every 12 hours
+
+Irrigation_Delay_Sec_On = 30 # watering time in seconds
+Irrigation_Delay_Sec_Off = 43200 # wait time in seconds
+Irrigation_Delay_Count = 0 # functions need to count down, not up
+Solenoid_Status = False
 
 # Initialise LED
 pycom.heartbeat(False)
@@ -28,13 +36,28 @@ _BT_UART = UART(1, baudrate=9600, pins=('P7','P6')) # TX, RX
 #_Clock.SetTime(0, 31, 15, 6, 25, 4, 20) # s,m,h,dow,d,m,y
 
 # SD stuff
-#sd = SD()
-#os.mount(sd, '/sd')
-#RootDir = "/sd/Greenhouse_Logs"
-#try:  # there is no check directory member of uos module...
-#    os.mkdir(RootDir)
-#except:
-#    print("Directory Exists")
+sd = SD()
+os.mount(sd, '/sd')
+RootDir = '/sd/Greenhouse_Meta'
+FileName = RootDir + '/config.txt'
+
+try: 
+    os.mkdir(RootDir) # make directory if it does not exist
+except:
+    print("Directory Exists")
+
+f = open(FileName, 'a') # generate file if it does not exist using write mode
+f.close()
+
+f = open(FileName, 'r') # open in read mode
+config_timings = f.read()
+f.close()
+if(config_timings != ''):
+    # load saved values otherwise use default values
+    print('loading saved values')
+    delimit = config_timings.split('_') # split string with delimiter
+    Irrigation_Delay_Sec_On = int(delimit[0])
+    Irrigation_Delay_Sec_Off = int(delimit[1])
 
 #LCD Screen
 def UpdateLCD(LineOne,LineTwo):
@@ -63,19 +86,59 @@ def DateStampString(): # returns a string of the time
 
 #pycom.rgbled(0x0000ff)  # blue
 
-Irrigation_Delay_Sec_On = 30 # watering time in seconds
-Irrigation_Delay_Sec_Off = 43200 # wait time in seconds
-Irrigation_Delay_Count = 0 # functions need to count down, not up
-Solenoid_Status = False
-
 # BLUETOOTH
+# https://docs.pycom.io/firmwareapi/pycom/network/bluetooth/
+# https://docs.pycom.io/firmwareapi/pycom/network/bluetooth/gattsservice/
+# https://docs.pycom.io/firmwareapi/pycom/network/bluetooth/gattscharacteristic/
 
-#BLE_Obj = Bluetooth()
-#BLE_Obj.set_advertisement(name='Greenhouse', service_uuid=b'1234567890123456')
-#BLE_Obj.advertise(True) # Works perfectly, now to define the GATT service
+# https://play.google.com/store/apps/details?id=com.macdom.ble.blescanner&hl=en_GB
+# Uses the "BLE scanner" app on Android
+# write using the text option
+def Delay_On_BLE_Callback(BLE_Type, Char_Value):
+    print("on delay write event")
+    
+    global Irrigation_Delay_Sec_On
+    Irrigation_Delay_Sec_On = int(chr1.value()) # watering time in seconds
+    global Irrigation_Delay_Count
+    Irrigation_Delay_Count = 0
+    global Solenoid_Status
+    Solenoid_Status = True
 
-#srv1 = BLE_Obj.service(uuid=b'1234567890123456', isprimary=True) # Pycom makes GATT super easy
-#chr1 = srv1.characteristic(uuid=b'ab34567890123456', value=5)
+    f = open(FileName, 'w') # overwrite data    
+    f.write(str(Irrigation_Delay_Sec_On))
+    f.write('_')
+    f.write(str(Irrigation_Delay_Sec_Off))
+    f.close()
+
+def Delay_Off_BLE_Callback(BLE_Type, Char_Value):
+    print("off delay write event")
+
+    global Irrigation_Delay_Sec_Off
+    Irrigation_Delay_Sec_Off = int(chr2.value()) # watering time in seconds
+    global Irrigation_Delay_Count
+    Irrigation_Delay_Count = 0
+    global Solenoid_Status
+    Solenoid_Status = True
+
+    f = open(FileName, 'w') # overwrite data
+    f.write(str(Irrigation_Delay_Sec_On) + "_" + str(Irrigation_Delay_Sec_Off))
+    f.close()
+
+# Setup BLE advertisement
+BLE_Obj = Bluetooth()
+BLE_Obj.set_advertisement(name='Greenhouse', service_uuid=b'1234567890123456')
+BLE_Obj.advertise(True)
+
+#define BLE GATT servcies and charateristics
+srv1 = BLE_Obj.service(uuid= 0x100, isprimary=True) # define two services because Pycom does not support multiple characteristics
+srv2 = BLE_Obj.service(uuid= 0x200, isprimary=True) # frontend code and documentation is incomplete
+chr1 = srv1.characteristic(uuid= 0x101, value= Irrigation_Delay_Sec_On)
+chr2 = srv2.characteristic(uuid= 0x201, value= Irrigation_Delay_Sec_Off)
+
+# Define callbacks for BLE events
+chr1.callback(trigger=Bluetooth.CHAR_WRITE_EVENT, handler=Delay_On_BLE_Callback)
+chr2.callback(trigger=Bluetooth.CHAR_WRITE_EVENT, handler=Delay_Off_BLE_Callback)
+
 
 
 # MAIN LOOP
@@ -110,12 +173,3 @@ while True:
     Delay_Count_Mins, Remain = divmod(Remain, 60) # devide remaining seconds into minutes
     UpdateLCD(TimeStampString()  + " " + LCD_Status_String, "Count: " + str(Delay_Count_Hours) + ":" + str(Delay_Count_Mins) + ":" + str(Remain))
     Timer.sleep_us(1000000) # One Second Delay
-
-
-
-# Future Ref
-
-# https://docs.pycom.io/firmwareapi/pycom/machine/spi/
-# https://docs.pycom.io/firmwareapi/pycom/network/bluetooth/
-# https://docs.pycom.io/firmwareapi/pycom/network/bluetooth/gattsservice/
-# https://docs.pycom.io/firmwareapi/pycom/network/bluetooth/gattscharacteristic/
