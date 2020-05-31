@@ -10,9 +10,7 @@ from _RTC import RTCBackend
 
 from network import Bluetooth
 
-# Needs to read delays from EEPROM
-# if 0 then set to default of 30 seconds every 12 hours
-
+# Timing variables
 Irrigation_Delay_Sec_On = 30 # watering time in seconds
 Irrigation_Delay_Sec_Off = 43200 # wait time in seconds
 Irrigation_Delay_Count = 0 # functions need to count down, not up
